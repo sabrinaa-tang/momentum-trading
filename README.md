@@ -49,12 +49,34 @@ The backtester includes realistic constraints: **Monthly Rebalancing** and **10 
 
 *Note on Returns vs. Risk: The reduction in absolute return for the ML Logistic strategy represents the "cost of insurance" paid to remain in cash during highly uncertain environments, ultimately resulting in a highly stable, leveragable equity curve.*
 
+## 📈 Visual Analytics & Insights
+
+### 1. Tail-Risk Mitigation (Drawdowns)
+![Strategy Drawdowns](results/figures/drawdowns.png)
+The defining success of the ML overlay (Red Line) is its behavior during severe market stress. During the 2020 COVID crash and the 2022 bear market, the Logistic Regression filter successfully ejected the portfolio to cash or reduced exposure, resulting in dramatically shallower drawdowns compared to the S&P 500 (Blue) and the base momentum strategy (Green). 
+
+### 2. The "Cost of Insurance" (Equity Curve)
+![Cumulative Equity Curve](results/figures/equity_curve.png)
+The log-scale equity curve perfectly illustrates the trade-off of the crash detector. While the Buy & Hold SPY benchmark achieves the highest absolute return, it does so with massive volatility. The ML Logistic strategy provides a much smoother, defensive compounding curve—sacrificing peak bull-market returns for downside protection.
+
+### 3. Regime Identification
+![Regime Visualization](results/figures/regime_visualization.png)
+Overlaying the ML's "Favorable Regime" signal (Green Shading) on top of the SPY price action proves the model is not acting randomly. The model cleanly cuts exposure (white spaces) during the late 2018 rate panic, the 2020 flash crash, and the protracted 2022 tech drawdown.
+
+### 4. Feature Importance Insights
+![Feature Importance](results/figures/feature_importance.png)
+The Random Forest feature importance chart reveals that **Treasury Bonds (TLT)** are the strongest leading indicators of market crashes. `TLT_ma_dist` (Treasury moving average distance) and `TLT_mom_252d` (Treasury 12-month momentum) were the most predictive features, highlighting the economic reality of "flight to safety" dynamics preceding severe equity drawdowns.
+
+### 5. Risk-Adjusted Stability
+![Rolling Sharpe Ratio](results/figures/rolling_sharpe.png)
+The 252-day Rolling Sharpe ratio demonstrates how the ML strategy behaves under the hood. The horizontal "flat-lining" of the Logistic ML strategy (Red Line) precisely during periods where the benchmark Sharpe ratio plunges negative proves the effectiveness of the `0% Eject` switch. The strategy actively zeroes out its variance rather than absorbing losses.
+
 ## 🏗️ Project Architecture
 
 * `data_loader.py`: Handles fetching and cleaning of Yahoo Finance data.
 * `features.py`: Computes rolling momentum, volatility, and dispersion metrics.
 * `momentum_strategy.py`: Generates the base trend-following signals and volatility-scaled weights.
-* `ml_model.py`: Generates forward-looking labels and executes Walk-Forward training for logistic regression (LR) and random forest (RF) models.
+* `ml_model.py`: Generates forward-looking labels and executes Walk-Forward training for LR and RF models.
 * `backtest.py`: Vectorized backtesting engine with realistic monthly rebalancing and turnover-based transaction costs.
 * `evaluation.py`: Computes core metrics (Sharpe, Drawdown) and generates matplotlib visualizations.
 * `main.py`: The orchestrator script that ties the pipeline together.
