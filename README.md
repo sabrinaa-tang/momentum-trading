@@ -33,3 +33,5 @@ The addition of the ML regime filter acting as an "emergency brake" significantl
 | Buy & Hold SPY (Benchmark) | 14.03% | 17.11% | 0.82 | -33.72% |
 | Base Momentum | 1.90% | 8.93% | 0.21 | -28.57% |
 | **ML Enhanced Momentum** | **4.35%** | **8.12%** | **0.54** | **-21.57%** |
+
+<img width="1200" height="600" alt="image" src="https://github.com/user-attachments/assets/905e3b9f-52d6-4bc8-8c72-b512e5d739d1" />
