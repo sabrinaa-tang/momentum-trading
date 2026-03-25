@@ -8,7 +8,7 @@ import pandas as pd
 from evaluation import calculate_metrics, plot_equity_curves
 
 def main():
-    tickers = ['SPY', 'QQQ', 'TLT', 'GLD', 'USO']
+    tickers = ['SPY', 'QQQ', 'TLT', 'GLD', 'USO', 'ICLN']
     start_date = '2010-01-01'
     
     # Day 1 & 2

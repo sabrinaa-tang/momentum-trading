@@ -1,68 +1,119 @@
 import pandas as pd
 import numpy as np
+import os
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.metrics import accuracy_score, classification_report
+from sklearn.preprocessing import StandardScaler
 
-def create_labels(prices: pd.DataFrame, positions: pd.DataFrame, forward_window: int = 21) -> pd.Series:
+def create_labels(prices: pd.DataFrame, eq_weights: pd.DataFrame, horizon: int = 21) -> pd.Series:
     """
-    Creates the target variable (y) for our ML model.
-    Label = 1 if the momentum strategy makes a positive return over the next 21 days, else 0.
+    Creates binary labels: 1 if the equal-weight momentum strategy generates 
+    a positive return over the next `horizon` days, 0 otherwise.
     """
-    # 1. Align the signals
-    # 'positions' from Day 3 are already shifted to be executed on Day T+1.
-    # To evaluate the signal generated at the close of Day T, we temporarily "unshift" it.
-    signals_at_t = positions.shift(-1)
+    print(f"Creating forward {horizon}-day return labels...")
     
-    # 2. Calculate the actual forward return of the assets from Close T to Close T+21
-    # .shift(-forward_window) pulls the future price back to today's row to compute the return
-    forward_asset_returns = prices.pct_change(forward_window).shift(-forward_window)
+    # Calculate daily returns of the assets
+    daily_returns = prices.pct_change()
     
-    # 3. Calculate how our portfolio would perform over those 21 days
-    strategy_fwd_returns = (signals_at_t * forward_asset_returns).sum(axis=1)
+    # Calculate daily strategy returns (weights from T applied to returns on T+1)
+    # Our features are already shifted, so eq_weights at T represents data up to T-1.
+    # Therefore, we multiply eq_weights at T by daily_returns at T.
+    strat_daily_returns = (eq_weights * daily_returns).sum(axis=1)
     
-    # 4. Create binary labels: 1 if profitable, 0 if flat or negative
-    labels = (strategy_fwd_returns > 0).astype(int)
+    # Calculate forward 21-day returns
+    # .shift(-horizon) looks INTO THE FUTURE to create the label for today
+    forward_returns = strat_daily_returns.rolling(window=horizon).sum().shift(-horizon)
     
-    # 5. Erase the last 21 days because we don't have future data to label them!
-    labels.iloc[-(forward_window+1):] = np.nan
+    # Binarize: 1 if profitable, 0 if not
+    labels = (forward_returns > 0).astype(int)
     
-    return labels.rename('target')
+    # The last `horizon` days will be NaN for forward returns, so we mark them as NaN
+    labels.iloc[-horizon:] = np.nan
+    
+    return labels
 
-def train_and_predict_regime(features: pd.DataFrame, labels: pd.Series, train_size: float = 0.7):
+def train_and_predict_walk_forward(X: pd.DataFrame, y: pd.Series, model_type: str = 'rf') -> pd.Series:
     """
-    Trains a Random Forest to predict the regime and generates trading signals.
+    Walk-forward training using TimeSeriesSplit to prevent data leakage.
+    Returns out-of-sample probability predictions.
     """
-    # Combine features and labels, dropping any rows with NaNs to ensure perfect alignment
-    data = pd.concat([features, labels], axis=1).dropna()
+    print(f"Training walk-forward {model_type.upper()} model...")
+    predictions = pd.Series(index=X.index, dtype=float)
     
-    X = data.drop('target', axis=1)
-    y = data['target']
+    # 10 expanding windows (e.g., train on 2 years, predict next 1 year, repeat)
+    tscv = TimeSeriesSplit(n_splits=10) 
     
-    # =====================================================================
-    # PARANOID QUANT CHECK: CHRONOLOGICAL SPLIT
-    # =====================================================================
-    # NEVER use sklearn's default train_test_split on financial data!
-    # It shuffles the data randomly, meaning you will train the model on data from 2020 
-    # to predict prices in 2015. We must split strictly by time.
-    split_idx = int(len(data) * train_size)
-    X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
-    y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
+    if model_type == 'rf':
+        # Restrict depth to prevent overfitting on noisy financial data
+        model = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42, n_jobs=-1)
+    else:
+        model = LogisticRegression(max_iter=1000, random_state=42)
+        
+    scaler = StandardScaler()
     
-    print(f"Training ML on {len(X_train)} days (Past), Testing on {len(X_test)} days (Future)...")
+    for train_index, test_index in tscv.split(X):
+        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+        
+        # Scale features (fit only on training data!)
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+        
+        # Train model
+        model.fit(X_train_scaled, y_train)
+        
+        # Predict probability of class 1 (profitable regime)
+        probs = model.predict_proba(X_test_scaled)[:, 1]
+        predictions.iloc[test_index] = probs
+        
+    return predictions
+
+if __name__ == "__main__":
+    features_path = 'data/features.csv'
+    prices_path = 'data/raw_prices.csv'
+    weights_path = 'data/weights_equal.csv'
     
-    # Initialize Random Forest. 
-    # max_depth=3 is CRITICAL. Financial data is extremely noisy. 
-    # Deep trees will memorize the noise (overfitting). Shallow trees find robust, general rules.
-    rf = RandomForestClassifier(n_estimators=100, max_depth=3, random_state=42, n_jobs=-1)
-    rf.fit(X_train, y_train)
-    
-    # Evaluate out-of-sample
-    test_preds = rf.predict(X_test)
-    print("\n--- ML Model Out-Of-Sample Performance ---")
-    print(classification_report(y_test, test_preds))
-    
-    # Generate predictions for the entire timeline to use in our backtest
-    all_preds = rf.predict(X)
-    regime_signals = pd.Series(all_preds, index=X.index, name="regime_signal")
-    
-    return regime_signals, rf
+    if all(os.path.exists(p) for p in [features_path, prices_path, weights_path]):
+        # Load data
+        X = pd.read_csv(features_path, index_col=0, parse_dates=True)
+        prices = pd.read_csv(prices_path, index_col=0, parse_dates=True)
+        eq_weights = pd.read_csv(weights_path, index_col=0, parse_dates=True)
+        
+        # Align indices just in case
+        common_idx = X.index.intersection(prices.index).intersection(eq_weights.index)
+        X = X.loc[common_idx]
+        prices = prices.loc[common_idx]
+        eq_weights = eq_weights.loc[common_idx]
+        
+        # Create target variable (y)
+        y = create_labels(prices, eq_weights, horizon=21)
+        
+        # Drop the last 21 days where we don't have future returns to train on
+        valid_idx = y.dropna().index
+        X_clean = X.loc[valid_idx]
+        y_clean = y.loc[valid_idx]
+        
+        print(f"Training on {len(X_clean)} days of data...")
+        
+        # Train Random Forest
+        rf_predictions = train_and_predict_walk_forward(X_clean, y_clean, model_type='rf')
+        
+        # Train Logistic Regression
+        lr_predictions = train_and_predict_walk_forward(X_clean, y_clean, model_type='lr')
+        
+        # Save predictions
+        preds_df = pd.DataFrame({
+            'rf_regime_prob': rf_predictions,
+            'lr_regime_prob': lr_predictions
+        }, index=X_clean.index)
+        
+        # Forward fill the predictions to the original index length (so we have a prediction for the very last days to trade on tomorrow)
+        preds_df = preds_df.reindex(X.index).ffill()
+        
+        preds_df.to_csv('data/ml_predictions.csv')
+        print("ML Predictions saved to data/ml_predictions.csv")
+        
+    else:
+        print("Error: Missing required CSV files in data/ directory. Run previous steps.")

@@ -1,64 +1,77 @@
 import pandas as pd
 import numpy as np
+import os
 
-def generate_base_signals(features: pd.DataFrame, assets: list, mom_window: int = 252) -> pd.DataFrame:
+def generate_trend_signals(features: pd.DataFrame, assets: list) -> pd.DataFrame:
     """
-    Generates directional signals based on the 12-month (252 trading days) momentum.
-    Rule: Long (1) if momentum > 0, Short (-1) if momentum < 0.
+    Generates binary directional signals based on 12-month (252-day) momentum.
+    +1 for Long (positive trend), -1 for Short (negative trend).
     """
-    # Extract the correct momentum columns
-    mom_cols = [f"{asset}_mom_{mom_window}d" for asset in assets]
-    mom_data = features[mom_cols].copy()
+    signals = pd.DataFrame(index=features.index)
     
-    # np.sign returns 1 for positive, -1 for negative, 0 for exactly zero.
-    signals = np.sign(mom_data)
-    
-    # Handle the extremely rare case where return is exactly 0.000%
-    signals = signals.replace(0, 1) 
-    
-    # Rename columns to clean asset names for easier alignment later
-    signals.columns = assets
+    for asset in assets:
+        mom_12m_col = f"{asset}_mom_252d"
+        # If momentum > 0, long (1). Else, short (-1).
+        signals[asset] = np.where(features[mom_12m_col] > 0, 1, -1)
+        
     return signals
 
-def calculate_volatility_weights(features: pd.DataFrame, assets: list, vol_window: int = 63) -> pd.DataFrame:
+def calculate_equal_weights(signals: pd.DataFrame) -> pd.DataFrame:
     """
-    Calculates inverse-volatility weights based on the 3-month (63 trading days) rolling volatility.
+    Allocates capital equally across all assets.
+    Gross exposure is maintained at 100% (1.0).
     """
-    vol_cols = [f"{asset}_vol_{vol_window}d" for asset in assets]
-    vol_data = features[vol_cols].copy()
-    
-    # Calculate inverse volatility (1 / Volatility)
-    inv_vol = 1.0 / vol_data
-    inv_vol.columns = assets
-    
-    # Normalize the weights so that the gross exposure sums to 100% (1.0) each day
-    weights = inv_vol.div(inv_vol.sum(axis=1), axis=0)
-    
+    n_assets = len(signals.columns)
+    # Divide the signal (+1 or -1) by the number of assets
+    weights = signals / n_assets
     return weights
 
-def build_target_positions(features: pd.DataFrame, assets: list) -> pd.DataFrame:
+def calculate_inverse_vol_weights(signals: pd.DataFrame, features: pd.DataFrame, assets: list) -> pd.DataFrame:
     """
-    Combines signals and weights, and applies the crucial lookahead shift.
+    Allocates capital inversely proportional to the asset's 63-day volatility.
+    Normalizes weights so absolute gross exposure equals 100%.
     """
-    print("Generating base momentum signals...")
-    signals = generate_base_signals(features, assets, mom_window=252)
+    raw_weights = pd.DataFrame(index=signals.index)
     
-    print("Calculating inverse-volatility weights...")
-    weights = calculate_volatility_weights(features, assets, vol_window=63)
+    for asset in assets:
+        vol_col = f"{asset}_vol_63d"
+        # Inverse of volatility (adding 1e-6 to prevent division by zero)
+        inv_vol = 1.0 / (features[vol_col] + 1e-6)
+        
+        # Raw weight = Direction * Magnitude
+        raw_weights[asset] = signals[asset] * inv_vol
+
+    # Normalize across the row so the sum of absolute weights equals 1.0
+    row_abs_sums = raw_weights.abs().sum(axis=1)
+    normalized_weights = raw_weights.div(row_abs_sums, axis=0)
     
-    # Target Position = Direction * Size
-    target_positions = signals * weights
+    return normalized_weights
+
+if __name__ == "__main__":
+    features_path = 'data/features.csv'
     
-    # =====================================================================
-    # THE MOST IMPORTANT LINE IN THE PROJECT: THE LOOKAHEAD SHIFT
-    # =====================================================================
-    # The signals and weights were calculated using the closing price of Day T.
-    # We cannot trade on Day T's close using Day T's data. 
-    # We must shift the target positions forward by 1 day so they apply to Day T+1.
-    executable_positions = target_positions.shift(1)
-    
-    # Drop the first row which is now NaN due to the shift
-    cleaned_positions = executable_positions.dropna()
-    print("Target positions calculated and shifted successfully.")
-    
-    return cleaned_positions
+    if os.path.exists(features_path):
+        features_df = pd.read_csv(features_path, index_col=0, parse_dates=True)
+        
+        # FIX: Only extract tickers from columns we explicitly know are momentum features
+        assets = list(set([col.split('_')[0] for col in features_df.columns if '_mom_252d' in col]))
+        assets.sort()
+        print(f"Detected universe: {assets}")
+        
+        # 1. Generate Signals
+        signals = generate_trend_signals(features_df, assets)
+        
+        # 2. Construct Portfolios
+        eq_weights = calculate_equal_weights(signals)
+        vol_weights = calculate_inverse_vol_weights(signals, features_df, assets)
+        
+        # 3. Save targets
+        eq_weights.to_csv('data/weights_equal.csv')
+        vol_weights.to_csv('data/weights_vol_scaled.csv')
+        
+        print("Portfolio weights generated successfully.")
+        print(f"Equal Weight snapshot (first row):\n{eq_weights.iloc[0].to_dict()}")
+        print(f"Vol-Scaled snapshot (first row):\n{vol_weights.iloc[0].to_dict()}")
+        
+    else:
+        print("Error: features.csv not found. Run features.py first.")
