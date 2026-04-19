@@ -12,13 +12,13 @@ transaction cost modelling, and a clean ablation study.
 
 | Strategy | Ann. Return | Ann. Vol | Sharpe | Sortino | Max DD | Calmar |
 |:---|---:|---:|---:|---:|---:|---:|
-| Equal-Weight Buy & Hold | 8.4% | 12.0% | 0.57 | 0.70 | -25.3% | 0.33 |
-| SPY Buy & Hold | 13.4% | 17.1% | 0.70 | 0.81 | -33.7% | 0.40 |
-| **Cross-Sectional Momentum** | **12.3%** | **13.2%** | **0.79** | **1.00** | **-24.8%** | **0.50** |
-| Momentum + Logistic Reg. | 7.9% | 11.2% | 0.55 | 0.60 | -24.8% | 0.32 |
-| Momentum + Random Forest | 8.9% | 11.9% | 0.60 | 0.68 | -24.8% | 0.36 |
-| TS Momentum + Stop-Loss | TBD | TBD | TBD | TBD | TBD | TBD |
-| Random Sanity Check | 7.0% | 15.1% | 0.39 | 0.42 | -33.3% | 0.21 |
+| Equal-Weight Buy & Hold | 8.9% | 12.0% | 0.61 | 0.75 | -25.3% | 0.35 |
+| SPY Buy & Hold | 14.0% | 17.1% | 0.74 | 0.86 | -33.7% | 0.42 |
+| **Cross-Sectional Momentum** | **12.0%** | **14.0%** | **0.73** | **0.88** | **-24.8%** | **0.48** |
+| Momentum + Logistic Reg. | 7.8% | 10.8% | 0.57 | 0.63 | -24.8% | 0.32 |
+| Momentum + Random Forest | 8.4% | 12.8% | 0.54 | 0.57 | -24.8% | 0.34 |
+| TS Momentum + Stop-Loss | 9.8% | 11.3% | 0.71 | 0.89 | -23.8% | 0.41 |
+| Random Sanity Check | 7.2% | 15.2% | 0.40 | 0.44 | -33.3% | 0.22 |
 
 > **Key finding:** Cross-sectional momentum achieves the highest risk-adjusted
 > performance (Sharpe 0.79, Sortino 1.00), outperforming SPY on every
