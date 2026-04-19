@@ -147,7 +147,7 @@ def main() -> None:
     print("\nGenerating plots...")
     plot_performance(results_aligned, RESULTS_DIR)
     plot_rolling_sharpe(results_aligned, RESULTS_DIR, risk_free_rate=RISK_FREE_RATE)
-    plot_regime_visualization(prices["SPY"], rf_regime, RESULTS_DIR)
+    plot_regime_visualization(prices["SPY"], (rf_regime > 0).astype(int), RESULTS_DIR)
     plot_feature_importance(get_feature_importance(X_ml, y_ml), RESULTS_DIR)
 
     # performance summary

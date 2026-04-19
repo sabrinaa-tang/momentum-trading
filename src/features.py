@@ -63,8 +63,9 @@ def build_all_features(prices: pd.DataFrame) -> pd.DataFrame:
     Compiles all features. Returns unshifted features aligned to their natural date.
 
     Features at row t use price data up to and including day t.
-    Callers MUST shift by the appropriate lag before using as predictors
-    (e.g., .shift(1) in a daily backtest, or resample-then-shift(1) in monthly).
+    The execution lag is handled by the backtest engine (shift(1) on weights),
+    NOT by the caller. Do NOT shift features before passing to signal generation —
+    that would create a 2-day lag.
 
     Drops warmup rows (first ~252 days) where any feature is NaN.
     """

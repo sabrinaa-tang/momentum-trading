@@ -17,7 +17,7 @@ def run_backtest(
 
     Signal lag:
       - target_weights must be derived from features already lagged 1 day.
-      - With shift(1), total lag = 2 days (feature lag + execution lag). Conservative and clean.
+      - Total lag = 1 day: features[t] → weights[t] → returns[t+1] via shift(1).
 
     Parameters
     ----------
