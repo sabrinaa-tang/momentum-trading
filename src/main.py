@@ -6,6 +6,7 @@ from data_loader import load_data
 from features import build_all_features
 from momentum_strategy import (
     generate_trend_signals,
+    generate_timeseries_momentum_signals,
     calculate_inverse_vol_weights,
     generate_equal_weight_baseline,
     generate_random_strategy,
@@ -79,6 +80,13 @@ def main() -> None:
         signals, features_daily, TICKERS, max_weight=MAX_ASSET_WEIGHT
     )
 
+    # time-series momentum with stop-loss
+    print("\nBuilding time-series momentum signals...")
+    ts_signals = generate_timeseries_momentum_signals(features_daily, TICKERS)
+    ts_weights = calculate_inverse_vol_weights(
+        ts_signals, features_daily, TICKERS, max_weight=MAX_ASSET_WEIGHT
+    )
+
     # ML labels & walk-forward training
     labels = create_labels(
     prices, base_weights,
@@ -132,6 +140,7 @@ def main() -> None:
             generate_random_strategy(daily_rets.index, TICKERS),
             tc=TC,
         ),
+        "7_TS_Momentum_Stop": run_backtest(daily_rets, ts_weights, tc=TC),
     }
     results_df = pd.DataFrame(results_dict)
 
