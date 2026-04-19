@@ -8,7 +8,7 @@ transaction cost modelling, and a clean ablation study.
 
 ---
 
-## Results (January 2011 – March 2026)
+## Results (January 2011 – April 2026)
 
 | Strategy | Ann. Return | Ann. Vol | Sharpe | Sortino | Max DD | Calmar |
 |:---|---:|---:|---:|---:|---:|---:|
@@ -20,13 +20,14 @@ transaction cost modelling, and a clean ablation study.
 | TS Momentum + Stop-Loss | 9.8% | 11.3% | 0.71 | 0.89 | -23.8% | 0.41 |
 | Random Sanity Check | 7.2% | 15.2% | 0.40 | 0.44 | -33.3% | 0.22 |
 
-> **Key finding:** Cross-sectional momentum achieves the highest risk-adjusted
-> performance (Sharpe 0.79, Sortino 1.00), outperforming SPY on every
-> risk-adjusted metric and incurring a smaller maximum drawdown (−24.8% vs
-> −33.7%). The ML regime filter reduces volatility but also reduces returns
-> sufficiently to lower the Sharpe ratio, which is a valid and expected result in a
-> predominantly trending market (discussed below). Time-series momentum results
-> are pending a full backtest run.
+> **Key finding:** Both momentum strategies outperform the ML variants and the
+> random baseline, but neither clearly dominates SPY on a Sharpe basis in this
+> sample. Cross-sectional momentum (Sharpe 0.73) achieves a meaningfully smaller
+> maximum drawdown (−24.8% vs −33.7%) at a comparable Sharpe to SPY (0.74).
+> Time-series momentum with stop-loss (Sharpe 0.71, Sortino 0.89) trades some
+> return for the lowest max drawdown in the table (−23.8%), making it the most
+> capital-efficient strategy on a downside-adjusted basis. The ML overlay continues
+> to destroy value relative to pure momentum, for the reasons discussed below.
 
 ---
 
@@ -149,22 +150,36 @@ SPY 1y drawdown.
 The ablation is ordered by increasing complexity:
 
 ```
-Random (sanity floor)   →  Sharpe 0.39
-Equal-weight passive    →  Sharpe 0.57  (+0.18 vs random)
-SPY buy & hold          →  Sharpe 0.70
-Momentum only           →  Sharpe 0.79  (+0.22 vs SPY — momentum premium)
-Momentum + Logistic     →  Sharpe 0.55  (−0.24 vs momentum only)
-Momentum + RF           →  Sharpe 0.60  (−0.19 vs momentum only)
+Random (sanity floor)       →  Sharpe 0.40
+Equal-weight passive        →  Sharpe 0.61  (+0.21 vs random)
+SPY buy & hold              →  Sharpe 0.74
+TS Momentum + Stop-Loss     →  Sharpe 0.71  (−0.03 vs SPY, lowest max DD at −23.8%)
+Cross-Sectional Momentum    →  Sharpe 0.73  (−0.01 vs SPY, max DD −24.8%)
+Momentum + Logistic         →  Sharpe 0.57  (−0.16 vs cross-sectional)
+Momentum + RF               →  Sharpe 0.54  (−0.19 vs cross-sectional)
 ```
 
-**Interpretation:** The ML overlay does not add value over the 2011–2026 sample
-period. This is likely because of the following three reasons:
+**Interpretation:** Neither momentum strategy beats SPY outright on Sharpe over
+this sample, but both offer a substantially better drawdown profile (−23.8% and
+−24.8% vs −33.7%), which matters for investors who can't tolerate peak-to-trough
+losses of a third of capital.
+
+The two momentum approaches offer a genuine tradeoff:
+- **Cross-sectional momentum** captures relative strength across assets and stays
+  more fully invested, producing higher returns (12.0% vs 9.8%) at the cost of
+  higher vol (14.0% vs 11.3%).
+- **Time-series momentum with stop-loss** reduces gross exposure when all assets
+  are trending down simultaneously, producing the best Sortino (0.89) and smallest
+  max drawdown (−23.8%) in the table. The stop-loss earns its cost in downside
+  protection without adding turnover.
+
+The ML overlay continues to not add value for the same three reasons as before:
 
 1. **Bull market bias.** The ML filter reduces gross exposure (active 83–94% of
    days). In a period where momentum almost always pays, reducing exposure
    mechanically reduces returns without a commensurate reduction in drawdown
-   (max drawdown is identical across all momentum variants at −24.8%, because
-   drawdowns occur within regimes labelled "favorable" by the model).
+   (max drawdown is identical across all cross-sectional momentum variants at
+   −24.8%, because drawdowns occur within regimes labelled "favorable" by the model).
 
 2. **Regime signal lead time.** A 21-day forward return label trained to predict
    the *median* of the distribution is a difficult classification problem in
@@ -176,10 +191,10 @@ period. This is likely because of the following three reasons:
    strategies incur approximately 15× more rebalance turnover than the
    momentum-only strategy (~7x vs ~0.5x annualised one-way).
 
-Based on the above analysis, I conclude that **the momentum signal itself is the alpha
-source**, and that ML regime filtering requires either a longer history spanning
-multiple full cycles, or a better-specified prediction target (e.g. tail-risk
-drawdown events rather than median forward return).
+I conclude that **the momentum signal itself is the alpha source**, and that ML
+regime filtering requires either a longer history spanning multiple full cycles,
+or a better-specified prediction target (e.g. tail-risk drawdown events rather
+than median forward return).
 
 ---
 
