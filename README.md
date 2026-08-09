@@ -34,9 +34,9 @@ explicit signal lagging, transaction cost modelling, and a clean ablation study.
 
 Three strategies are compared in the ablation study:
 
-1. **Cross-Sectional Momentum** — ranks assets relative to each other using composite z-scores across four lookback windows (1m/3m/6m/12m). Long the relatively strongest assets, flat on the weakest.
-2. **Time-Series Momentum with Stop-Loss** — evaluates each asset independently; long if its own 12m return is positive. A 10% trailing stop-loss (based on 252-day rolling drawdown) overrides the signal to limit drawdown exposure.
-3. **ML Regime Overlay** — applied on top of cross-sectional momentum; scales position sizes down when a classifier predicts an unfavorable forward return regime.
+1. **Cross-Sectional Momentum**: ranks assets relative to each other using composite z-scores across four lookback windows (1m/3m/6m/12m). Long the relatively strongest assets, flat on the weakest.
+2. **Time-Series Momentum with Stop-Loss**: evaluates each asset independently; long if its own 12m return is positive. A 10% trailing stop-loss (based on 252-day rolling drawdown) overrides the signal to limit drawdown exposure.
+3. **ML Regime Overlay**: applied on top of cross-sectional momentum; scales position sizes down when a classifier predicts an unfavorable forward return regime.
 
 ---
 
@@ -160,8 +160,7 @@ Momentum + RF               →  Sharpe 0.54  (−0.19 vs cross-sectional)
 
 **Interpretation:** Neither momentum strategy beats SPY outright on Sharpe over
 this sample, but both offer a substantially better drawdown profile (−23.8% and
-−24.8% vs −33.7%), which matters for investors who can't tolerate peak-to-trough
-losses of a third of capital.
+−24.8% vs −33.7%).
 
 The two momentum approaches offer a genuine tradeoff:
 - **Cross-sectional momentum** captures relative strength across assets and stays
@@ -172,7 +171,7 @@ The two momentum approaches offer a genuine tradeoff:
   max drawdown (−23.8%) in the table. The stop-loss earns its cost in downside
   protection without adding turnover.
 
-The ML overlay continues to not add value for the same three reasons as before:
+The ML overlay continues to not add value:
 
 1. **Bull market bias.** The ML filter reduces gross exposure (active 83–94% of
    days). In a period where momentum almost always pays, reducing exposure
@@ -239,8 +238,7 @@ full covariance matrix estimate (which is noisy in a 5-asset universe).
 
 **Why composite z-score across lookbacks?**  
 Single-lookback momentum is sensitive to the chosen window. Averaging
-cross-sectional z-scores across 1m/3m/6m/12m is more robust and reflects
-the standard multi-horizon approach in the academic momentum literature.
+cross-sectional z-scores across 1m/3m/6m/12m is more robust.
 
 **Why expanding-window median labels?**  
 A fixed return threshold produces severely imbalanced labels in trending
