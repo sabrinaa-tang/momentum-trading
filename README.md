@@ -1,10 +1,9 @@
 # Cross-Asset Momentum Trading: Cross-Sectional, Time-Series, and ML Regime Filter
 
-A quantitative trading framework comparing three systematic strategies across a
+A comparison of three systematic strategies across a
 multi-asset universe: cross-sectional momentum, time-series momentum with a
-trailing stop-loss, and a machine learning regime overlay. Built to
-institutional standards: walk-forward validation, explicit signal lagging,
-transaction cost modelling, and a clean ablation study.
+trailing stop-loss, and a machine learning regime overlay. Includes walk-forward validation, 
+explicit signal lagging, transaction cost modelling, and a clean ablation study.
 
 ---
 
