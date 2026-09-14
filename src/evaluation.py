@@ -1,6 +1,8 @@
 import os
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
@@ -235,3 +237,103 @@ def plot_feature_importance(importance_series: pd.Series, save_dir: str) -> None
     fig.tight_layout()
     fig.savefig(os.path.join(save_dir, "feature_importance.png"), dpi=150)
     plt.close(fig)
+
+
+def plot_universe_comparison(
+    std_results: pd.DataFrame,
+    hv_results: pd.DataFrame,
+    save_dir: str,
+    std_label: str = "Standard (SPY/QQQ/TLT/GLD/USO)",
+    hv_label: str  = "High-Vol (XBI/GDX/EWZ/FXI/XOP)",
+    risk_free_rate: float = 0.02,
+) -> None:
+    """
+    Generates two comparison figures:
+      universe_comparison.png — 2×2 grid of equity curves and drawdowns
+      sharpe_comparison.png   — grouped bar chart of Sharpe ratios per strategy
+    """
+    os.makedirs(save_dir, exist_ok=True)
+
+    # align both to a common start date
+    common_start = max(std_results.index[0], hv_results.index[0])
+    std = std_results.loc[common_start:].dropna(how="all")
+    hv  = hv_results.loc[common_start:].dropna(how="all")
+
+    colors = plt.cm.tab10.colors
+
+    def _equity_ax(ax, results, title):
+        for i, col in enumerate(results.columns):
+            cum = (1 + results[col].dropna()).cumprod() * 100
+            ax.plot(cum.index, cum, color=colors[i % 10], linewidth=1.4, label=col)
+        ax.set_yscale("log")
+        ax.set_title(title, fontsize=10)
+        ax.set_ylabel("Growth of $100")
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+        ax.legend(fontsize=7)
+        ax.grid(True, which="both", ls="--", alpha=0.4)
+
+    def _dd_ax(ax, results, title):
+        for i, col in enumerate(results.columns):
+            cum = (1 + results[col].dropna()).cumprod()
+            dd  = ((cum / cum.cummax()) - 1) * 100
+            ax.plot(dd.index, dd, color=colors[i % 10], linewidth=1.0, label=col)
+        ax.set_title(title, fontsize=10)
+        ax.set_ylabel("Drawdown (%)")
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+        ax.legend(fontsize=7)
+        ax.grid(True, ls="--", alpha=0.4)
+
+    # ── Figure 1: equity curves + drawdowns ──────────────────────────────────
+    fig, axes = plt.subplots(2, 2, figsize=(16, 10))
+    _equity_ax(axes[0, 0], std, f"Equity Curves — {std_label}")
+    _equity_ax(axes[0, 1], hv,  f"Equity Curves — {hv_label}")
+    _dd_ax(axes[1, 0], std, f"Drawdowns — {std_label}")
+    _dd_ax(axes[1, 1], hv,  f"Drawdowns — {hv_label}")
+    fig.suptitle("Universe Comparison: All Strategies", fontsize=13)
+    fig.tight_layout()
+    fig.savefig(os.path.join(save_dir, "universe_comparison.png"), dpi=150)
+    plt.close(fig)
+
+    # ── Figure 2: Sharpe ratio bar chart ─────────────────────────────────────
+    strategies  = std_results.columns.tolist()
+    std_sharpes = [
+        calculate_metrics(std_results[s], risk_free_rate).get("sharpe", np.nan)
+        for s in strategies
+    ]
+    hv_sharpes = [
+        calculate_metrics(hv_results[s], risk_free_rate).get("sharpe", np.nan)
+        for s in strategies
+    ]
+
+    x     = np.arange(len(strategies))
+    width = 0.35
+
+    fig, ax = plt.subplots(figsize=(12, 5))
+    bars_std = ax.bar(x - width / 2, std_sharpes, width, label=std_label,
+                      color="steelblue", alpha=0.85)
+    bars_hv  = ax.bar(x + width / 2, hv_sharpes,  width, label=hv_label,
+                      color="coral",     alpha=0.85)
+    ax.axhline(0, color="black", lw=0.8, ls="--")
+
+    for bars in (bars_std, bars_hv):
+        for bar in bars:
+            v = bar.get_height()
+            if pd.notna(v):
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    v + (0.03 if v >= 0 else -0.08),
+                    f"{v:.2f}",
+                    ha="center", va="bottom", fontsize=7,
+                )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(strategies, rotation=20, ha="right", fontsize=9)
+    ax.set_ylabel("Sharpe Ratio (annualized)")
+    ax.set_title("Sharpe Ratio by Strategy: Standard vs. High-Vol Universe", fontsize=12)
+    ax.legend()
+    ax.grid(True, axis="y", ls="--", alpha=0.4)
+    fig.tight_layout()
+    fig.savefig(os.path.join(save_dir, "sharpe_comparison.png"), dpi=150)
+    plt.close(fig)
+
+    print(f"\nComparison figures saved → {save_dir}")

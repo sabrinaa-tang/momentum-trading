@@ -8,26 +8,105 @@ transaction cost modelling, and a clean ablation study.
 
 ---
 
-## Results (January 2011 – April 2026)
+## Results (January 2011 – September 2026)
+
+### Standard Universe: SPY / QQQ / TLT / GLD / USO
 
 | Strategy | Ann. Return | Ann. Vol | Sharpe | Sortino | Max DD | Calmar |
 |:---|---:|---:|---:|---:|---:|---:|
-| Equal-Weight Buy & Hold | 8.9% | 12.0% | 0.61 | 0.75 | -25.3% | 0.35 |
-| SPY Buy & Hold | 14.0% | 17.1% | 0.74 | 0.86 | -33.7% | 0.42 |
-| **Cross-Sectional Momentum** | **12.0%** | **14.0%** | **0.73** | **0.88** | **-24.8%** | **0.48** |
-| Momentum + Logistic Reg. | 7.8% | 10.8% | 0.57 | 0.63 | -24.8% | 0.32 |
-| Momentum + Random Forest | 8.4% | 12.8% | 0.54 | 0.57 | -24.8% | 0.34 |
-| TS Momentum + Stop-Loss | 9.8% | 11.3% | 0.71 | 0.89 | -23.8% | 0.41 |
-| Random Sanity Check | 7.2% | 15.2% | 0.40 | 0.44 | -33.3% | 0.22 |
+| Equal-Weight Buy & Hold | 9.2% | 12.0% | 0.63 | 0.78 | -25.3% | 0.36 |
+| SPY Buy & Hold | 14.2% | 17.0% | 0.75 | 0.88 | -33.7% | 0.42 |
+| **Cross-Sectional Momentum** | **13.7%** | **14.5%** | **0.82** | **1.02** | **-24.8%** | **0.55** |
+| Momentum + Logistic Reg. | 8.9% | 11.4% | 0.63 | 0.68 | -19.3% | 0.46 |
+| Momentum + Random Forest | 10.2% | 13.4% | 0.65 | 0.73 | -24.8% | 0.41 |
+| TS Momentum + Stop-Loss | 9.8% | 11.5% | 0.70 | 0.88 | -23.8% | 0.41 |
+| Random Sanity Check | 7.8% | 15.3% | 0.44 | 0.49 | -33.3% | 0.24 |
 
-> **Key finding:** Both momentum strategies outperform the ML variants and the
-> random baseline, but neither clearly dominates SPY on a Sharpe basis in this
-> sample. Cross-sectional momentum (Sharpe 0.73) achieves a meaningfully smaller
-> maximum drawdown (−24.8% vs −33.7%) at a comparable Sharpe to SPY (0.74).
-> Time-series momentum with stop-loss (Sharpe 0.71, Sortino 0.89) trades some
-> return for the lowest max drawdown in the table (−23.8%), making it the most
-> capital-efficient strategy on a downside-adjusted basis. The ML overlay continues
-> to destroy value relative to pure momentum, for the reasons discussed below.
+> **Key finding:** Cross-sectional momentum (Sharpe 0.82) is the best
+> risk-adjusted strategy, beating SPY (0.75) while sustaining a smaller max
+> drawdown (−24.8% vs −33.7%). Time-series momentum with stop-loss (Sharpe
+> 0.70) achieves the lowest max drawdown (−23.8%). The ML overlay reduces
+> returns in both variants without a commensurate reduction in drawdown.
+
+### High-Volatility Universe: XBI / GDX / EWZ / FXI / XOP
+
+| Strategy | Ann. Return | Ann. Vol | Sharpe | Sortino | Max DD | Calmar |
+|:---|---:|---:|---:|---:|---:|---:|
+| Equal-Weight Buy & Hold | 6.8% | 22.8% | 0.32 | 0.28 | -44.8% | 0.15 |
+| SPY Buy & Hold | 14.2% | 17.0% | 0.75 | 0.88 | -33.7% | 0.42 |
+| Cross-Sectional Momentum | 7.5% | 26.5% | 0.33 | 0.28 | -45.1% | 0.17 |
+| Momentum + Logistic Reg. | 5.8% | 21.5% | 0.28 | 0.21 | -45.1% | 0.13 |
+| Momentum + Random Forest | 6.6% | 24.0% | 0.30 | 0.24 | -45.1% | 0.15 |
+| **TS Momentum + Stop-Loss** | **2.0%** | **26.1%** | **0.13** | **-0.00** | **-57.7%** | **0.03** |
+| Random Sanity Check | 8.9% | 25.5% | 0.38 | 0.40 | -49.5% | 0.18 |
+
+> **Key finding:** The momentum framework fails to add value in the high-vol
+> universe. A random strategy (Sharpe 0.38) beats cross-sectional momentum
+> (0.33), indicating the signals carry no edge over these assets.
+> TS momentum collapses entirely — the 10% trailing stop triggers on 96.6% of
+> days, keeping the strategy nearly perpetually in cash.
+
+---
+
+## Universe Comparison Analysis
+
+### Why the high-vol universe was chosen
+
+XBI (biotech), GDX (gold miners), EWZ (Brazil), FXI (China), and XOP (oil & gas E&P)
+were selected as high-volatility counterparts to the standard universe on the
+following criteria: all had inception dates before January 2011 (the backtest
+start), are single-leg ETFs with no leverage decay, and represented genuinely
+volatile but established asset classes rather than niche or exotic instruments.
+
+**Lookahead bias caveat.** These five ETFs were chosen in September 2026 with
+full knowledge of their behaviour over the backtest period. This introduces two
+forms of bias that are difficult to eliminate:
+
+- **Survivorship bias.** The selection implicitly excludes ETFs that existed in
+  2011 but were later delisted or suspended. RSX (VanEck Russia ETF, inception
+  2007) would have been a natural candidate but was suspended in March 2022 due
+  to sanctions — a regime-change event that any backtest ending in 2026 would
+  need to handle explicitly. Including only survivors understates the true risk
+  of the high-vol universe.
+
+- **Selection bias.** Labelling an asset "high-volatility" in 2026 reflects
+  knowledge of how it actually behaved over 2011–2026. A practitioner building
+  this universe in January 2011 would have had rougher ex-ante volatility
+  estimates and may have made different inclusions. The specific five tickers
+  here should be treated as an illustrative stress-test, not a
+  point-in-time-valid universe.
+
+A fully unbiased comparison would require constructing the universe using only
+information available at the backtest start date, with no reference to
+post-2011 performance or survival.
+
+### What the comparison shows
+
+**The low-volatility anomaly holds.** The high-vol universe delivers lower
+risk-adjusted returns despite comparable (and often higher) absolute volatility.
+XBI/GDX/EWZ/FXI/XOP averaged ~25% annualized vol but produced Sharpe ratios
+around 0.30–0.38 — roughly half those of the standard universe at half the
+vol (12–15%). This is consistent with the well-documented finding that
+high-beta assets do not compensate proportionally for the additional risk.
+
+**Momentum signals require trending assets.** Cross-sectional momentum barely
+outperforms equal-weight (Sharpe 0.33 vs 0.32), and a random strategy beats
+both. The high-vol assets are more noise-driven and prone to mean-reversion,
+which violates the trending-asset assumption that makes momentum signals
+informative. The feature importances confirm this: in the standard universe the
+top features are trend indicators (GLD MA distance, GLD 12m momentum); in the
+high-vol universe they are pure volatility features (GDX 21d vol, GDX 63d vol),
+indicating the model is detecting vol clustering rather than directional momentum.
+
+**The 10% trailing stop-loss is miscalibrated for high-vol assets.** A 10%
+drawdown threshold is appropriate for assets running ~15% annualized vol —
+it represents roughly a 0.65-sigma move. Applied to assets running 25–30% vol,
+the same threshold is triggered by ordinary daily fluctuations. The result is
+that the TS momentum strategy is stopped out on 96.6% of days (vs 89.0% for
+the standard universe), maintains only 36.3% mean gross exposure, and produces
+the worst risk-adjusted result in the table (Sharpe 0.13, Max DD −57.7%).
+A vol-scaled stop-loss (e.g. 1× annualized vol) would be a more appropriate
+design for a universe-agnostic implementation.
 
 ---
 
@@ -42,7 +121,8 @@ Three strategies are compared in the ablation study:
 ---
 
 ### Universe
-Five liquid ETFs providing cross-asset exposure:
+
+**Standard universe** — five liquid ETFs providing cross-asset exposure:
 
 | Ticker | Asset Class | Role |
 |:---|:---|:---|
@@ -51,6 +131,16 @@ Five liquid ETFs providing cross-asset exposure:
 | TLT | Long-Duration Treasuries | Flight-to-quality / diversifier |
 | GLD | Gold | Inflation hedge / tail risk |
 | USO | Crude Oil | Commodity momentum |
+
+**High-volatility universe** — five higher-beta ETFs for stress-testing:
+
+| Ticker | Asset Class | Inception |
+|:---|:---|:---|
+| XBI | S&P Biotech (equal-weighted) | Jan 2006 |
+| GDX | Gold Miners | May 2006 |
+| EWZ | iShares Brazil | Jul 2000 |
+| FXI | iShares China Large-Cap | Oct 2004 |
+| XOP | S&P Oil & Gas E&P | Jun 2006 |
 
 ### Signal Generation
 
@@ -139,47 +229,47 @@ each market regime and consistently produces ~50/50 class balance
 | Cross-asset | 21d rolling dispersion of daily returns = 1 feature |
 
 All features computed with `min_periods` equal to the full window length —
-no partial-window values during warmup. The top five features by RF importance:
-GLD MA distance, QQQ 63d volatility, GLD 12m momentum, QQQ 1m momentum,
-SPY 1y drawdown.
+no partial-window values during warmup. Top features by RF importance differ
+by universe: in the standard universe they are trend indicators (GLD MA
+distance, GLD 12m momentum); in the high-vol universe they are volatility
+features (GDX 21d vol, GDX 63d vol), consistent with the absence of
+exploitable directional momentum in the high-vol assets.
 
 ---
 
 ## Ablation Study: Isolating the ML Contribution
 
-The ablation is ordered by increasing complexity:
+The ablation is ordered by increasing complexity, standard universe:
 
 ```
-Random (sanity floor)       →  Sharpe 0.40
-Equal-weight passive        →  Sharpe 0.61  (+0.21 vs random)
-SPY buy & hold              →  Sharpe 0.74
-TS Momentum + Stop-Loss     →  Sharpe 0.71  (−0.03 vs SPY, lowest max DD at −23.8%)
-Cross-Sectional Momentum    →  Sharpe 0.73  (−0.01 vs SPY, max DD −24.8%)
-Momentum + Logistic         →  Sharpe 0.57  (−0.16 vs cross-sectional)
-Momentum + RF               →  Sharpe 0.54  (−0.19 vs cross-sectional)
+Random (sanity floor)       →  Sharpe 0.44
+Equal-weight passive        →  Sharpe 0.63  (+0.19 vs random)
+SPY buy & hold              →  Sharpe 0.75
+TS Momentum + Stop-Loss     →  Sharpe 0.70  (lowest max DD at −23.8%)
+Momentum + RF               →  Sharpe 0.65
+Momentum + Logistic         →  Sharpe 0.63
+Cross-Sectional Momentum    →  Sharpe 0.82  (best risk-adjusted)
 ```
 
-**Interpretation:** Neither momentum strategy beats SPY outright on Sharpe over
-this sample, but both offer a substantially better drawdown profile (−23.8% and
-−24.8% vs −33.7%), which matters for investors who can't tolerate peak-to-trough
-losses of a third of capital.
+**Interpretation:** Cross-sectional momentum beats SPY on Sharpe (0.82 vs 0.75)
+and delivers a substantially better drawdown profile (−24.8% vs −33.7%).
+Time-series momentum with stop-loss achieves the smallest max drawdown (−23.8%)
+with a competitive Sharpe (0.70), making it the most capital-efficient on a
+downside-adjusted basis.
 
 The two momentum approaches offer a genuine tradeoff:
 - **Cross-sectional momentum** captures relative strength across assets and stays
-  more fully invested, producing higher returns (12.0% vs 9.8%) at the cost of
-  higher vol (14.0% vs 11.3%).
+  more fully invested, producing higher returns (13.7% vs 9.8%) at the cost of
+  higher vol (14.5% vs 11.5%).
 - **Time-series momentum with stop-loss** reduces gross exposure when all assets
-  are trending down simultaneously, producing the best Sortino (0.89) and smallest
-  max drawdown (−23.8%) in the table. The stop-loss earns its cost in downside
-  protection without adding turnover.
+  are trending down simultaneously, producing the best Sortino (0.88) and smallest
+  max drawdown (−23.8%) in the table.
 
-The ML overlay continues to not add value for the same three reasons as before:
+The ML overlay continues to not add value for the same three reasons:
 
-1. **Bull market bias.** The ML filter reduces gross exposure (active 83–94% of
+1. **Bull market bias.** The ML filter reduces gross exposure (active 82–96% of
    days). In a period where momentum almost always pays, reducing exposure
-   mechanically reduces returns without a commensurate reduction in drawdown
-   (max drawdown is identical across all cross-sectional momentum variants at
-   −24.8%, because drawdowns occur within regimes labelled "favorable" by the model).
+   mechanically reduces returns without a commensurate reduction in drawdown.
 
 2. **Regime signal lead time.** A 21-day forward return label trained to predict
    the *median* of the distribution is a difficult classification problem in
@@ -191,10 +281,9 @@ The ML overlay continues to not add value for the same three reasons as before:
    strategies incur approximately 15× more rebalance turnover than the
    momentum-only strategy (~7x vs ~0.5x annualised one-way).
 
-I conclude that **the momentum signal itself is the alpha source**, and that ML
-regime filtering requires either a longer history spanning multiple full cycles,
-or a better-specified prediction target (e.g. tail-risk drawdown events rather
-than median forward return).
+The momentum signal itself is the alpha source. ML regime filtering requires
+either a longer history spanning multiple full cycles, or a better-specified
+prediction target (e.g. tail-risk drawdown events rather than median forward return).
 
 ---
 
@@ -210,18 +299,15 @@ momentum-trading/
 │   ├── ml_model.py             # label creation, walk-forward training, importances
 │   ├── backtest.py             # vectorised backtest, daily drift, TC modelling
 │   ├── evaluation.py           # metrics, ablation table, all visualisations
-│   └── main.py                 # pipeline orchestration
+│   └── main.py                 # pipeline orchestration (runs both universes)
 └── results/
     └── figures/
-        ├── equity_curve.png
-        ├── drawdowns.png
-        ├── rolling_sharpe.png
-        ├── regime_visualization.png
-        └── feature_importance.png
+        ├── standard/           # Standard universe charts
+        ├── highvol/            # High-vol universe charts
+        └── comparison/         # Cross-universe equity curves + Sharpe bar chart
 ```
 
 ---
-
 
 ## Key Design Decisions
 
@@ -256,9 +342,16 @@ to the current market regime while maintaining strict temporal separation.
   Performance across a full cycle (including 2000–2002, 2007–2009) would
   require extending the universe to indices with longer histories.
 
-- **Survivorship bias:** The five tickers were selected with knowledge of their
-  existence through 2026. A production implementation would use a point-in-time
-  universe construction.
+- **Survivorship bias in universe selection:** Both universes were constructed
+  in September 2026 with knowledge of which ETFs survived through the backtest
+  period. A production implementation would use a point-in-time universe
+  construction. The high-vol universe is particularly affected — RSX (Russia
+  ETF) is the most obvious omission, having been suspended mid-sample in 2022.
+
+- **Stop-loss calibration:** The fixed 10% trailing stop is not scaled to asset
+  volatility. A vol-scaled threshold (e.g. 1× annualized vol per asset) would
+  avoid the stop triggering trivially on high-vol assets and degenerate
+  behaviour like the 96.6% stop-active rate observed in the high-vol universe.
 
 - **ML signal quality:** The regime classifier's predictive accuracy is not
   reported. Adding precision/recall curves and calibration plots per fold would
