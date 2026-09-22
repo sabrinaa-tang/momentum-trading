@@ -13,6 +13,8 @@ transaction cost modelling, and a clean ablation study.
 
 | Strategy | Ann. Return | Ann. Vol | Sharpe | Sortino | Max DD | Calmar |
 |:---|---:|---:|---:|---:|---:|---:|
+| Equal-Weight Buy & Hold | 9.2% | 12.0% | 0.63 | 0.78 | -25.3% | 0.36 |
+| Random Sanity Check | 7.8% | 15.3% | 0.44 | 0.49 | -33.3% | 0.24 |
 | SPY Buy & Hold | 14.3% | 17.0% | 0.75 | 0.89 | -33.7% | 0.42 |
 | **Cross-Sectional Momentum** | **13.6%** | **14.5%** | **0.82** | **1.01** | **-24.8%** | **0.55** |
 | Momentum + LR (narrow — 5-ticker features) | 7.6% | 11.2% | 0.53 | 0.55 | -22.0% | 0.34 |
@@ -158,6 +160,8 @@ no partial-window values during warmup.
 ## Ablation Study: Isolating the ML Contribution
 
 ```
+Random (sanity floor)                   →  Sharpe 0.44, Vol 15.3%, Max DD −33.3%
+Equal-Weight Buy & Hold                 →  Sharpe 0.63, Vol 12.0%, Max DD −25.3%
 SPY buy & hold                          →  Sharpe 0.75, Vol 17.0%, Max DD −33.7%
 Momentum + LR Narrow (5 tickers)        →  Sharpe 0.53, Vol 11.2%, Max DD −22.0%
 Momentum + RF Narrow (5 tickers)        →  Sharpe 0.64, Vol 13.6%, Max DD −24.8%

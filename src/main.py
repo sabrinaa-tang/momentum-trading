@@ -7,7 +7,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from data_loader import load_data
 from features import build_all_features
-from momentum_strategy import generate_trend_signals, calculate_inverse_vol_weights
+from momentum_strategy import (
+    generate_trend_signals,
+    calculate_inverse_vol_weights,
+    generate_equal_weight_baseline,
+    generate_random_strategy,
+)
 from ml_model import create_labels, train_and_predict_walk_forward, get_feature_importance
 from backtest import run_backtest
 from evaluation import (
@@ -122,12 +127,14 @@ def main() -> None:
 
     print("\nRunning backtests...")
     results = pd.DataFrame({
-        "1_Momentum":        run_backtest(daily_rets, weights,                    tc=TC),
-        "2_LR_Narrow":       run_backtest(daily_rets, scale_weights(lr_narrow),   tc=TC),
-        "3_RF_Narrow":       run_backtest(daily_rets, scale_weights(rf_narrow),   tc=TC),
-        "4_LR_Wide":         run_backtest(daily_rets, scale_weights(lr_wide),     tc=TC),
-        "5_RF_Wide":         run_backtest(daily_rets, scale_weights(rf_wide),     tc=TC),
-        "6_SPY_BuyHold":     spy_rets,
+        "1_EqWeight":    run_backtest(daily_rets, generate_equal_weight_baseline(daily_rets.index, MOMENTUM_TICKERS), tc=TC),
+        "2_Random":      run_backtest(daily_rets, generate_random_strategy(daily_rets.index, MOMENTUM_TICKERS),       tc=TC),
+        "3_SPY_BuyHold": spy_rets,
+        "4_Momentum":    run_backtest(daily_rets, weights,                    tc=TC),
+        "5_LR_Narrow":   run_backtest(daily_rets, scale_weights(lr_narrow),   tc=TC),
+        "6_RF_Narrow":   run_backtest(daily_rets, scale_weights(rf_narrow),   tc=TC),
+        "7_LR_Wide":     run_backtest(daily_rets, scale_weights(lr_wide),     tc=TC),
+        "8_RF_Wide":     run_backtest(daily_rets, scale_weights(rf_wide),     tc=TC),
     })
 
     os.makedirs(BASE_RESULTS, exist_ok=True)
