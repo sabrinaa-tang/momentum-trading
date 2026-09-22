@@ -17,16 +17,17 @@ transaction cost modelling, and a clean ablation study.
 | **Cross-Sectional Momentum** | **13.6%** | **14.5%** | **0.82** | **1.01** | **-24.8%** | **0.55** |
 | Momentum + LR (narrow — 5-ticker features) | 7.6% | 11.2% | 0.53 | 0.55 | -22.0% | 0.34 |
 | Momentum + RF (narrow — 5-ticker features) | 10.2% | 13.6% | 0.64 | 0.72 | -24.8% | 0.41 |
-| Momentum + LR (wide — 12-ticker features) | 10.1% | 12.8% | 0.66 | 0.71 | -24.8% | 0.41 |
-| Momentum + RF (wide — 12-ticker features) | 11.5% | 13.8% | 0.72 | 0.84 | -23.0% | 0.50 |
+| Momentum + LR (wide — 7 uncorrelated features) | 10.7% | 13.3% | 0.68 | 0.76 | -24.8% | 0.43 |
+| Momentum + RF (wide — 7 uncorrelated features) | 10.5% | 12.0% | 0.73 | 0.88 | -23.0% | 0.46 |
 
 > **Key finding:** Cross-sectional momentum (Sharpe 0.82) beats SPY (0.75) on a
 > risk-adjusted basis while sustaining a smaller max drawdown (−24.8% vs −33.7%).
-> Expanding the ML feature set from 5 to 12 tickers — adding uncorrelated assets
-> (DBA, SLV, FXY, XBI, FXI, UNG, VNQ) as regime signals — consistently improves
-> both ML variants: RF_Wide reaches Sharpe 0.72 vs RF_Narrow at 0.64. The ML
-> overlay still reduces returns relative to raw momentum in this predominantly
-> bull-market sample, but cuts max drawdown to −23.0% and reduces volatility.
+> Using only the 7 uncorrelated assets as exogenous ML features — keeping the
+> momentum signal and regime signal orthogonal — improves both wide variants over
+> the narrow baseline: RF_Wide reaches Sharpe 0.73, vol 12.0%, Sortino 0.88 vs
+> RF_Narrow at Sharpe 0.64, vol 13.6%. RF_Wide presents a genuine risk-return
+> tradeoff: −3.1% annual return vs raw momentum, but −2.8% lower vol and −1.8%
+> smaller max drawdown.
 
 ---
 
@@ -85,7 +86,7 @@ momentum-only values.
 
 Two models trained in parallel on two feature sets:
 - **Narrow (51 features)** — features from the 5 traded tickers only
-- **Wide (121 features)** — features from all 12 tickers; uncorrelated assets provide macro regime context unavailable from the traded universe alone
+- **Wide (71 features)** — features from the 7 uncorrelated tickers only (DBA, SLV, FXY, XBI, FXI, UNG, VNQ); traded tickers are deliberately excluded so the two model inputs are orthogonal — momentum signal from the traded universe, regime signal from the uncorrelated universe
 
 Two model types:
 - **Logistic Regression** — interpretable baseline with L2 regularisation
@@ -139,15 +140,15 @@ each market regime and consistently produces ~50/50 class balance
 ### Feature Engineering
 Two feature sets are built — narrow (5 traded tickers) and wide (12 tickers):
 
-| Category | Narrow (5 tickers) | Wide (12 tickers) |
+| Category | Narrow (5 traded tickers) | Wide (7 uncorrelated tickers) |
 |:---|---:|---:|
-| Momentum (21d/63d/126d/252d) | 20 | 48 |
-| Moving Average distance (50d/200d) | 5 | 12 |
-| Volatility (21d/63d annualised) | 10 | 24 |
-| Drawdown (252d rolling) | 5 | 12 |
-| Mean-reversion z-score (21d/63d) | 10 | 24 |
+| Momentum (21d/63d/126d/252d) | 20 | 28 |
+| Moving Average distance (50d/200d) | 5 | 7 |
+| Volatility (21d/63d annualised) | 10 | 14 |
+| Drawdown (252d rolling) | 5 | 7 |
+| Mean-reversion z-score (21d/63d) | 10 | 14 |
 | Cross-asset dispersion (21d) | 1 | 1 |
-| **Total** | **51** | **121** |
+| **Total** | **51** | **71** |
 
 All features computed with `min_periods` equal to the full window length —
 no partial-window values during warmup.
@@ -157,18 +158,21 @@ no partial-window values during warmup.
 ## Ablation Study: Isolating the ML Contribution
 
 ```
-SPY buy & hold                    →  Sharpe 0.75
-Momentum + LR Narrow (5 tickers)  →  Sharpe 0.53
-Momentum + RF Narrow (5 tickers)  →  Sharpe 0.64
-Momentum + LR Wide  (12 tickers)  →  Sharpe 0.66
-Momentum + RF Wide  (12 tickers)  →  Sharpe 0.72
-Cross-Sectional Momentum          →  Sharpe 0.82  (best risk-adjusted)
+SPY buy & hold                          →  Sharpe 0.75, Vol 17.0%, Max DD −33.7%
+Momentum + LR Narrow (5 tickers)        →  Sharpe 0.53, Vol 11.2%, Max DD −22.0%
+Momentum + RF Narrow (5 tickers)        →  Sharpe 0.64, Vol 13.6%, Max DD −24.8%
+Momentum + LR Wide  (7 uncorrelated)    →  Sharpe 0.68, Vol 13.3%, Max DD −24.8%
+Momentum + RF Wide  (7 uncorrelated)    →  Sharpe 0.73, Vol 12.0%, Max DD −23.0%
+Cross-Sectional Momentum                →  Sharpe 0.82, Vol 14.5%, Max DD −24.8%  (best risk-adjusted)
 ```
 
 **Interpretation:** Cross-sectional momentum beats SPY on Sharpe (0.82 vs 0.75)
-with a substantially better drawdown profile (−24.8% vs −33.7%). The wide ML
-feature set consistently outperforms the narrow one, confirming that uncorrelated
-assets carry regime information the traded universe alone cannot capture.
+with a substantially better drawdown profile (−24.8% vs −33.7%). Using only the
+7 uncorrelated tickers as exogenous regime features — rather than mixing in the
+5 traded tickers — consistently improves both wide variants over the narrow
+baseline, confirming the uncorrelated assets carry genuine orthogonal regime
+information. RF_Wide offers the best risk-reduction tradeoff: Sortino 0.88
+(matching SPY) at 12.0% vol, while max drawdown stays at −23.0%.
 
 The ML overlay reduces returns in this sample for three structural reasons:
 

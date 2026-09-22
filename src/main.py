@@ -22,10 +22,10 @@ from evaluation import (
 # Traded assets — momentum signal and weights built from these
 MOMENTUM_TICKERS = ["SPY", "QQQ", "TLT", "GLD", "USO"]
 
-# Extended feature universe for the wide ML variant:
-# EDA tickers (uncorrelated) + the 3 momentum tickers not already in EDA
-WIDE_FEATURE_TICKERS = ["TLT", "USO", "DBA", "SLV", "FXY", "XBI", "FXI", "UNG", "VNQ",
-                        "SPY", "QQQ", "GLD"]
+# Exogenous regime signals for the wide ML variant — uncorrelated assets only,
+# intentionally excluding the 5 traded tickers so the two inputs are orthogonal:
+# momentum signal from traded universe, regime signal from uncorrelated universe
+WIDE_FEATURE_TICKERS = ["DBA", "SLV", "FXY", "XBI", "FXI", "UNG", "VNQ"]
 
 START_DATE          = "2010-01-01"
 BASE_RESULTS        = "results/figures/"
