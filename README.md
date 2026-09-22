@@ -14,19 +14,20 @@ transaction cost modelling, and a clean ablation study.
 
 | Strategy | Ann. Return | Ann. Vol | Sharpe | Sortino | Max DD | Calmar |
 |:---|---:|---:|---:|---:|---:|---:|
-| Equal-Weight Buy & Hold | 9.2% | 12.0% | 0.63 | 0.78 | -25.3% | 0.36 |
-| SPY Buy & Hold | 14.2% | 17.0% | 0.75 | 0.88 | -33.7% | 0.42 |
-| **Cross-Sectional Momentum** | **13.7%** | **14.5%** | **0.82** | **1.02** | **-24.8%** | **0.55** |
-| Momentum + Logistic Reg. | 8.9% | 11.4% | 0.63 | 0.68 | -19.3% | 0.46 |
-| Momentum + Random Forest | 10.2% | 13.4% | 0.65 | 0.73 | -24.8% | 0.41 |
-| TS Momentum + Stop-Loss | 9.8% | 11.5% | 0.70 | 0.88 | -23.8% | 0.41 |
-| Random Sanity Check | 7.8% | 15.3% | 0.44 | 0.49 | -33.3% | 0.24 |
+| SPY Buy & Hold | 14.3% | 17.0% | 0.75 | 0.89 | -33.7% | 0.42 |
+| **Cross-Sectional Momentum** | **13.6%** | **14.5%** | **0.82** | **1.01** | **-24.8%** | **0.55** |
+| Momentum + LR (narrow — 5-ticker features) | 7.6% | 11.2% | 0.53 | 0.55 | -22.0% | 0.34 |
+| Momentum + RF (narrow — 5-ticker features) | 10.2% | 13.6% | 0.64 | 0.72 | -24.8% | 0.41 |
+| Momentum + LR (wide — 12-ticker features) | 10.1% | 12.8% | 0.66 | 0.71 | -24.8% | 0.41 |
+| Momentum + RF (wide — 12-ticker features) | 11.5% | 13.8% | 0.72 | 0.84 | -23.0% | 0.50 |
 
-> **Key finding:** Cross-sectional momentum (Sharpe 0.82) is the best
-> risk-adjusted strategy, beating SPY (0.75) while sustaining a smaller max
-> drawdown (−24.8% vs −33.7%). Time-series momentum with stop-loss (Sharpe
-> 0.70) achieves the lowest max drawdown (−23.8%). The ML overlay reduces
-> returns in both variants without a commensurate reduction in drawdown.
+> **Key finding:** Cross-sectional momentum (Sharpe 0.82) remains the best
+> risk-adjusted strategy, beating SPY (0.75) with a smaller max drawdown
+> (−24.8% vs −33.7%). Expanding the ML feature set to 12 tickers (adding
+> uncorrelated assets: TLT, USO, DBA, SLV, FXY, XBI, FXI, UNG, VNQ) improves
+> both ML variants over the 5-ticker baseline — RF_Wide reaches Sharpe 0.72 vs
+> RF_Narrow at 0.64. The ML overlay still reduces returns relative to raw
+> momentum in this predominantly bull-market sample period.
 
 ### High-Volatility Universe: XBI / GDX / EWZ / FXI / XOP
 
@@ -218,15 +219,18 @@ each market regime and consistently produces ~50/50 class balance
 (observed: 53% positive), enabling genuine discriminative learning.
 
 ### Feature Engineering
-36 features across four categories:
+Two feature sets are built — narrow (5 traded tickers) and wide (12 tickers,
+adding 7 uncorrelated ETFs: DBA, SLV, FXY, XBI, FXI, UNG, VNQ):
 
-| Category | Features |
-|:---|:---|
-| Momentum | Rolling returns at 21d, 63d, 126d, 252d × 5 assets = 20 features |
-| Moving Average | 50d/200d MA distance × 5 assets = 5 features |
-| Volatility | 21d and 63d annualised vol × 5 assets = 10 features |
-| Drawdown | 252d drawdown × 5 assets = 5 features |
-| Cross-asset | 21d rolling dispersion of daily returns = 1 feature |
+| Category | Narrow (5 tickers) | Wide (12 tickers) |
+|:---|---:|---:|
+| Momentum (21d/63d/126d/252d) | 20 | 48 |
+| Moving Average distance (50d/200d) | 5 | 12 |
+| Volatility (21d/63d annualised) | 10 | 24 |
+| Drawdown (252d rolling) | 5 | 12 |
+| Mean-reversion z-score (21d/63d) | 10 | 24 |
+| Cross-asset dispersion (21d) | 1 | 1 |
+| **Total** | **51** | **121** |
 
 All features computed with `min_periods` equal to the full window length —
 no partial-window values during warmup. Top features by RF importance differ
@@ -242,13 +246,12 @@ exploitable directional momentum in the high-vol assets.
 The ablation is ordered by increasing complexity, standard universe:
 
 ```
-Random (sanity floor)       →  Sharpe 0.44
-Equal-weight passive        →  Sharpe 0.63  (+0.19 vs random)
-SPY buy & hold              →  Sharpe 0.75
-TS Momentum + Stop-Loss     →  Sharpe 0.70  (lowest max DD at −23.8%)
-Momentum + RF               →  Sharpe 0.65
-Momentum + Logistic         →  Sharpe 0.63
-Cross-Sectional Momentum    →  Sharpe 0.82  (best risk-adjusted)
+SPY buy & hold                    →  Sharpe 0.75
+Momentum + LR Narrow (5 tickers)  →  Sharpe 0.53
+Momentum + RF Narrow (5 tickers)  →  Sharpe 0.64
+Momentum + LR Wide  (12 tickers)  →  Sharpe 0.66
+Momentum + RF Wide  (12 tickers)  →  Sharpe 0.72
+Cross-Sectional Momentum          →  Sharpe 0.82  (best risk-adjusted)
 ```
 
 **Interpretation:** Cross-sectional momentum beats SPY on Sharpe (0.82 vs 0.75)

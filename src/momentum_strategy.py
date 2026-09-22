@@ -45,6 +45,31 @@ def generate_trend_signals(features: pd.DataFrame, assets: list) -> pd.DataFrame
     return signals
 
 
+def generate_mean_reversion_signals(features: pd.DataFrame, assets: list) -> pd.DataFrame:
+    """
+    Binary long/flat signals from composite mean-reversion z-score (21d + 63d average).
+    Long (1) when composite z-score < 0 (price below rolling mean), flat otherwise.
+    """
+    windows = [21, 63]
+    missing = [
+        f"{a}_zscr_{w}d"
+        for a in assets for w in windows
+        if f"{a}_zscr_{w}d" not in features.columns
+    ]
+    if missing:
+        raise KeyError(f"Missing z-score columns in features: {missing}")
+
+    score_chunks = []
+    for w in windows:
+        z_cols = [f"{a}_zscr_{w}d" for a in assets]
+        z = features[z_cols].copy()
+        z.columns = assets
+        score_chunks.append(z)
+
+    composite = pd.concat(score_chunks).groupby(level=0).mean().reindex(features.index)
+    return (composite < 0).astype(int)
+
+
 def calculate_inverse_vol_weights(
     signals: pd.DataFrame,
     features: pd.DataFrame,

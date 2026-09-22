@@ -47,6 +47,22 @@ def calculate_risk_features(prices: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(chunks, axis=1)
 
 
+def calculate_mean_reversion_features(prices: pd.DataFrame) -> pd.DataFrame:
+    """
+    Z-score of price relative to its rolling mean at 21d and 63d windows.
+    Negative z-score = price below mean = mean-reversion buy signal.
+    No shift applied here — caller is responsible for lagging before use.
+    """
+    chunks = []
+    for w in [21, 63]:
+        mean = prices.rolling(w).mean()
+        std  = prices.rolling(w).std().replace(0, np.nan)
+        z    = (prices - mean) / std
+        z.columns = [f"{col}_zscr_{w}d" for col in prices.columns]
+        chunks.append(z)
+    return pd.concat(chunks, axis=1)
+
+
 def calculate_cross_asset_features(prices: pd.DataFrame) -> pd.DataFrame:
     """
     Cross-sectional return dispersion: rolling mean of daily cross-asset return std.
@@ -75,6 +91,7 @@ def build_all_features(prices: pd.DataFrame) -> pd.DataFrame:
         calculate_momentum_features(prices),
         calculate_risk_features(prices),
         calculate_cross_asset_features(prices),
+        calculate_mean_reversion_features(prices),
     ], axis=1)
 
     # guard against inf values from adjusted price edge cases

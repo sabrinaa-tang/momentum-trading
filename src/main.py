@@ -7,13 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from data_loader import load_data
 from features import build_all_features
-from momentum_strategy import (
-    generate_trend_signals,
-    calculate_inverse_vol_weights,
-    generate_equal_weight_baseline,
-    generate_random_strategy,
-)
-from ts_momentum_strategy import generate_timeseries_momentum_signals
+from momentum_strategy import generate_trend_signals, calculate_inverse_vol_weights
 from ml_model import create_labels, train_and_predict_walk_forward, get_feature_importance
 from backtest import run_backtest
 from evaluation import (
@@ -22,25 +16,28 @@ from evaluation import (
     plot_rolling_sharpe,
     plot_regime_visualization,
     plot_feature_importance,
-    plot_universe_comparison,
 )
 
-# ── Universe definitions ──────────────────────────────────────────────────────
-STANDARD_TICKERS = ["SPY", "QQQ", "TLT", "GLD", "USO"]
-HIGHVOL_TICKERS  = ["XBI", "GDX", "EWZ", "FXI", "XOP"]
+# ── Universes ─────────────────────────────────────────────────────────────────
+# Traded assets — momentum signal and weights built from these
+MOMENTUM_TICKERS = ["SPY", "QQQ", "TLT", "GLD", "USO"]
 
-START_DATE     = "2010-01-01"
-BASE_RESULTS   = "results/figures/"
-RISK_FREE_RATE = 0.02
+# Extended feature universe for the wide ML variant:
+# EDA tickers (uncorrelated) + the 3 momentum tickers not already in EDA
+WIDE_FEATURE_TICKERS = ["TLT", "USO", "DBA", "SLV", "FXY", "XBI", "FXI", "UNG", "VNQ",
+                        "SPY", "QQQ", "GLD"]
 
-LABEL_HORIZON       = 21
-LABEL_THRESHOLD     = -0.02
-LABEL_TYPE          = "median"
+START_DATE          = "2010-01-01"
+BASE_RESULTS        = "results/figures/"
+RISK_FREE_RATE      = 0.02
 TC                  = 0.001
+MAX_ASSET_WEIGHT    = 0.40
+LABEL_HORIZON       = 21
+LABEL_TYPE          = "median"
+LABEL_THRESHOLD     = -0.02
 ML_PROB_THRESHOLD   = 0.50
 ML_PROB_PARTIAL     = 0.35
 ML_SMOOTHING_WINDOW = 5
-MAX_ASSET_WEIGHT    = 0.40
 
 
 def build_ml_regime(
@@ -50,12 +47,6 @@ def build_ml_regime(
     low: float  = ML_PROB_PARTIAL,
     smooth: int = ML_SMOOTHING_WINDOW,
 ) -> pd.Series:
-    """
-    Converts raw walk-forward probabilities into a {0, 0.5, 1.0} regime scalar.
-
-    Warmup rows (NaN predictions) default to 1.0 — full momentum exposure.
-    Smoothing window reduces transaction cost drag from daily regime flips.
-    """
     filled   = probs.reindex(target_index).ffill().fillna(1.0)
     smoothed = filled.rolling(window=smooth, min_periods=1).mean()
     regime   = pd.Series(
@@ -70,116 +61,86 @@ def build_ml_regime(
     return regime
 
 
-def run_universe_pipeline(
-    tickers: list,
-    spy_prices: pd.DataFrame,
-    universe_label: str,
-    save_dir: str,
-) -> tuple:
-    """
-    Runs the full momentum strategy pipeline for a given ticker universe.
+def train_ml_pair(X: pd.DataFrame, y: pd.Series, label: str) -> tuple:
+    """Trains RF + logistic walk-forward on X/y, returns (rf_regime, lr_regime)."""
+    print(f"\n--- ML [{label}]: {X.shape[1]} features ---")
+    rf_probs = train_and_predict_walk_forward(X, y, model_type="rf",       horizon=LABEL_HORIZON)
+    lr_probs = train_and_predict_walk_forward(X, y, model_type="logistic", horizon=LABEL_HORIZON)
+    print(f"  RF regime:  ", end="")
+    rf_regime = build_ml_regime(rf_probs, y.index)
+    print(f"  LR regime:  ", end="")
+    lr_regime = build_ml_regime(lr_probs, y.index)
+    return rf_regime, lr_regime
 
-    spy_prices is loaded externally so SPY buy-and-hold is always the same
-    benchmark regardless of whether SPY is in the trading universe.
 
-    Returns (results_aligned, results_df, rf_regime, X_ml, y_ml, ml_start).
-    """
-    print(f"\n{'='*70}")
-    print(f"  UNIVERSE: {universe_label}")
-    print(f"  Tickers:  {tickers}")
-    print(f"{'='*70}")
-    os.makedirs(save_dir, exist_ok=True)
+def main() -> None:
+    spy_prices = load_data(["SPY"], START_DATE)
 
-    prices         = load_data(tickers, START_DATE)
-    features_daily = build_all_features(prices)
-
-    signals      = generate_trend_signals(features_daily, tickers)
-    base_weights = calculate_inverse_vol_weights(
-        signals, features_daily, tickers, max_weight=MAX_ASSET_WEIGHT
-    )
-
-    print("\nBuilding time-series momentum signals...")
-    ts_signals = generate_timeseries_momentum_signals(features_daily, tickers)
-    ts_weights = calculate_inverse_vol_weights(
-        ts_signals, features_daily, tickers, max_weight=MAX_ASSET_WEIGHT
+    # ── Momentum weights (traded universe) ───────────────────────────────────
+    print(f"\n{'='*60}")
+    print(f"  Building momentum weights: {MOMENTUM_TICKERS}")
+    print(f"{'='*60}")
+    mom_prices        = load_data(MOMENTUM_TICKERS, START_DATE)
+    features_narrow   = build_all_features(mom_prices)
+    signals           = generate_trend_signals(features_narrow, MOMENTUM_TICKERS)
+    weights           = calculate_inverse_vol_weights(
+        signals, features_narrow, MOMENTUM_TICKERS, max_weight=MAX_ASSET_WEIGHT
     )
 
     labels = create_labels(
-        prices, base_weights,
+        mom_prices, weights,
         horizon=LABEL_HORIZON,
         threshold=LABEL_THRESHOLD,
         label_type=LABEL_TYPE,
     )
+    common_narrow = features_narrow.index.intersection(labels.dropna().index)
+    X_narrow = features_narrow.loc[common_narrow]
+    y        = labels.loc[common_narrow]
+    print(f"  ML training set: {len(X_narrow)} days "
+          f"({X_narrow.index[0].date()} → {X_narrow.index[-1].date()})")
 
-    common_idx = features_daily.index.intersection(labels.dropna().index)
-    X_ml = features_daily.loc[common_idx]
-    y_ml = labels.loc[common_idx]
-    print(f"\nML training set: {len(X_ml)} days "
-          f"({X_ml.index[0].date()} → {X_ml.index[-1].date()})")
+    # ── Wide feature set (EDA tickers + 3 non-EDA momentum tickers) ──────────
+    print(f"\n{'='*60}")
+    print(f"  Building wide features: {WIDE_FEATURE_TICKERS}")
+    print(f"{'='*60}")
+    wide_prices    = load_data(WIDE_FEATURE_TICKERS, START_DATE)
+    features_wide  = build_all_features(wide_prices)
+    common_wide    = features_wide.index.intersection(labels.dropna().index)
+    X_wide         = features_wide.loc[common_wide]
+    y_wide         = labels.loc[common_wide]
 
-    rf_probs = train_and_predict_walk_forward(
-        X_ml, y_ml, model_type="rf",       horizon=LABEL_HORIZON
-    )
-    lr_probs = train_and_predict_walk_forward(
-        X_ml, y_ml, model_type="logistic", horizon=LABEL_HORIZON
-    )
+    # ── Train both ML variants ────────────────────────────────────────────────
+    rf_narrow, lr_narrow = train_ml_pair(X_narrow, y,      label="narrow — 5 tickers")
+    rf_wide,   lr_wide   = train_ml_pair(X_wide,   y_wide, label="wide — 12 tickers")
 
-    print("\nBuilding ML regime signals...")
-    rf_regime = build_ml_regime(rf_probs, base_weights.index)
-    lr_regime = build_ml_regime(lr_probs, base_weights.index)
+    # ── Apply regime filters to momentum weights ──────────────────────────────
+    def scale_weights(regime: pd.Series) -> pd.DataFrame:
+        return weights.multiply(regime.reindex(weights.index).ffill().fillna(1.0), axis=0)
 
-    ml_rf_weights = base_weights.multiply(rf_regime, axis=0)
-    ml_lr_weights = base_weights.multiply(lr_regime, axis=0)
-
-    weights_start = base_weights.index[0]
-    daily_rets    = prices.pct_change().dropna().loc[weights_start:]
-    spy_rets      = spy_prices.pct_change().dropna()["SPY"].reindex(daily_rets.index)
+    daily_rets = mom_prices.pct_change().dropna().loc[weights.index[0]:]
+    spy_rets   = spy_prices.pct_change().dropna()["SPY"].reindex(daily_rets.index)
 
     print("\nRunning backtests...")
-    results_dict = {
-        "1_EqWeight":    run_backtest(
-            daily_rets, generate_equal_weight_baseline(daily_rets.index, tickers), tc=TC
-        ),
-        "2_SPY_BuyHold": spy_rets,
-        "3_Momentum":    run_backtest(daily_rets, base_weights, tc=TC),
-        "4_Mom_LogReg":  run_backtest(daily_rets, ml_lr_weights, tc=TC),
-        "5_Mom_RF":      run_backtest(daily_rets, ml_rf_weights, tc=TC),
-        "6_Random":      run_backtest(
-            daily_rets, generate_random_strategy(daily_rets.index, tickers), tc=TC
-        ),
-        "7_TS_Momentum": run_backtest(daily_rets, ts_weights, tc=TC),
-    }
-    results_df = pd.DataFrame(results_dict)
+    results = pd.DataFrame({
+        "1_Momentum":        run_backtest(daily_rets, weights,                    tc=TC),
+        "2_LR_Narrow":       run_backtest(daily_rets, scale_weights(lr_narrow),   tc=TC),
+        "3_RF_Narrow":       run_backtest(daily_rets, scale_weights(rf_narrow),   tc=TC),
+        "4_LR_Wide":         run_backtest(daily_rets, scale_weights(lr_wide),     tc=TC),
+        "5_RF_Wide":         run_backtest(daily_rets, scale_weights(rf_wide),     tc=TC),
+        "6_SPY_BuyHold":     spy_rets,
+    })
 
-    ml_start = results_df.apply(lambda c: c.first_valid_index()).max()
-    print(f"\n[INFO] Full history:     {results_df.index[0].date()} → "
-          f"{results_df.index[-1].date()}")
-    print(f"[INFO] ML window starts: {ml_start.date()} "
-          f"({(results_df.index >= ml_start).sum()} trading days)")
+    os.makedirs(BASE_RESULTS, exist_ok=True)
+    plot_performance(results, BASE_RESULTS)
+    plot_rolling_sharpe(results, BASE_RESULTS, risk_free_rate=RISK_FREE_RATE)
+    plot_regime_visualization(spy_prices["SPY"], (rf_wide > 0).astype(int), BASE_RESULTS)
+    plot_feature_importance(get_feature_importance(X_wide, y_wide), BASE_RESULTS)
 
-    results_aligned = results_df.loc[ml_start:]
-
-    print(f"\nGenerating plots → {save_dir}")
-    plot_performance(results_aligned, save_dir)
-    plot_rolling_sharpe(results_aligned, save_dir, risk_free_rate=RISK_FREE_RATE)
-    plot_regime_visualization(spy_prices["SPY"], (rf_regime > 0).astype(int), save_dir)
-    plot_feature_importance(get_feature_importance(X_ml, y_ml), save_dir)
-
-    return results_aligned, results_df, rf_regime, X_ml, y_ml, ml_start
-
-
-def print_summary(
-    label: str,
-    results_aligned: pd.DataFrame,
-    results_df: pd.DataFrame,
-    ml_start: pd.Timestamp,
-) -> None:
     print(f"\n{'='*90}")
-    print(f"PERFORMANCE SUMMARY — {label}")
-    print(f"ML window: {ml_start.date()} → {results_aligned.index[-1].date()}")
+    print("PERFORMANCE SUMMARY")
     print("="*90)
     summary = compare_strategies(
-        {col: results_aligned[col] for col in results_aligned.columns},
+        {col: results[col].dropna() for col in results.columns},
         risk_free_rate=RISK_FREE_RATE,
     )
     try:
@@ -187,54 +148,7 @@ def print_summary(
     except ImportError:
         print(summary.to_string())
 
-    non_ml = ["1_EqWeight", "2_SPY_BuyHold", "3_Momentum"]
-    print(f"\n{'='*90}")
-    print(f"FULL HISTORY — {label}")
-    print(f"{results_df.index[0].date()} → {results_df.index[-1].date()} "
-          f"— non-ML strategies only")
-    print("="*90)
-    summary_full = compare_strategies(
-        {col: results_df[col].dropna() for col in non_ml},
-        risk_free_rate=RISK_FREE_RATE,
-    )
-    try:
-        print(summary_full.to_markdown())
-    except ImportError:
-        print(summary_full.to_string())
-
-
-def main() -> None:
-    # SPY is loaded once and shared as the buy-and-hold benchmark for both universes
-    spy_prices = load_data(["SPY"], START_DATE)
-
-    std_aligned, std_full, _, _, _, std_ml_start = run_universe_pipeline(
-        STANDARD_TICKERS,
-        spy_prices,
-        "Standard ETFs (SPY / QQQ / TLT / GLD / USO)",
-        os.path.join(BASE_RESULTS, "standard"),
-    )
-
-    hv_aligned, hv_full, _, _, _, hv_ml_start = run_universe_pipeline(
-        HIGHVOL_TICKERS,
-        spy_prices,
-        "High-Vol ETFs (XBI / GDX / EWZ / FXI / XOP)",
-        os.path.join(BASE_RESULTS, "highvol"),
-    )
-
-    print_summary("Standard ETFs (SPY/QQQ/TLT/GLD/USO)", std_aligned, std_full, std_ml_start)
-    print_summary("High-Vol ETFs (XBI/GDX/EWZ/FXI/XOP)", hv_aligned,  hv_full,  hv_ml_start)
-
-    comparison_dir = os.path.join(BASE_RESULTS, "comparison")
-    plot_universe_comparison(
-        std_aligned, hv_aligned,
-        comparison_dir,
-        risk_free_rate=RISK_FREE_RATE,
-    )
-
     print(f"\nAll figures saved under {BASE_RESULTS}")
-    print("  standard/   — Standard ETF universe")
-    print("  highvol/    — High-Vol ETF universe")
-    print("  comparison/ — Cross-universe comparison charts")
 
 
 if __name__ == "__main__":
