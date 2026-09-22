@@ -1,10 +1,9 @@
 # Cross-Asset Momentum Trading: Cross-Sectional, Time-Series, and ML Regime Filter
 
-A quantitative trading framework comparing three systematic strategies across a
+A comparison of three systematic strategies across a
 multi-asset universe: cross-sectional momentum, time-series momentum with a
-trailing stop-loss, and a machine learning regime overlay. Built to
-institutional standards: walk-forward validation, explicit signal lagging,
-transaction cost modelling, and a clean ablation study.
+trailing stop-loss, and a machine learning regime overlay. Includes walk-forward validation, 
+explicit signal lagging, transaction cost modelling, and a clean ablation study.
 
 ---
 
@@ -115,9 +114,9 @@ design for a universe-agnostic implementation.
 
 Three strategies are compared in the ablation study:
 
-1. **Cross-Sectional Momentum** — ranks assets relative to each other using composite z-scores across four lookback windows (1m/3m/6m/12m). Long the relatively strongest assets, flat on the weakest.
-2. **Time-Series Momentum with Stop-Loss** — evaluates each asset independently; long if its own 12m return is positive. A 10% trailing stop-loss (based on 252-day rolling drawdown) overrides the signal to limit drawdown exposure.
-3. **ML Regime Overlay** — applied on top of cross-sectional momentum; scales position sizes down when a classifier predicts an unfavorable forward return regime.
+1. **Cross-Sectional Momentum**: ranks assets relative to each other using composite z-scores across four lookback windows (1m/3m/6m/12m). Long the relatively strongest assets, flat on the weakest.
+2. **Time-Series Momentum with Stop-Loss**: evaluates each asset independently; long if its own 12m return is positive. A 10% trailing stop-loss (based on 252-day rolling drawdown) overrides the signal to limit drawdown exposure.
+3. **ML Regime Overlay**: applied on top of cross-sectional momentum; scales position sizes down when a classifier predicts an unfavorable forward return regime.
 
 ---
 
@@ -329,8 +328,7 @@ full covariance matrix estimate (which is noisy in a 5-asset universe).
 
 **Why composite z-score across lookbacks?**  
 Single-lookback momentum is sensitive to the chosen window. Averaging
-cross-sectional z-scores across 1m/3m/6m/12m is more robust and reflects
-the standard multi-horizon approach in the academic momentum literature.
+cross-sectional z-scores across 1m/3m/6m/12m is more robust.
 
 **Why expanding-window median labels?**  
 A fixed return threshold produces severely imbalanced labels in trending
